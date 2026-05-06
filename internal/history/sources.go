@@ -310,7 +310,7 @@ func (h *Sources) Write(infer bool) {
 
 		// Don't write it if the history source has reached
 		// the maximum number of lines allowed (inputrc)
-		if h.maxEntries == 0 || h.maxEntries >= history.Len() {
+		if h.maxEntries > 0 && history.Len() >= h.maxEntries {
 			continue
 		}
 
