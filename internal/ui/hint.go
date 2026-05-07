@@ -130,16 +130,19 @@ func CoordinatesHint(hint *Hint) int {
 	}
 
 	// Otherwise compute the real length/span.
+	// Split on ClearLineAfter to get individual hint lines.
 	usedY := 0
 	lines := strings.Split(text, term.ClearLineAfter)
 
-	for i, line := range lines {
-		x, y := strutil.LineSpan([]rune(line), i, 0)
-		if x != 0 {
-			y++
+	for _, line := range lines {
+		line = strings.TrimPrefix(line, term.NewlineReturn)
+		lineLen := strutil.RealLength(line)
+		if lineLen == 0 {
+			continue
 		}
-
-		usedY += y
+		termWidth := term.GetWidth()
+		rows := (lineLen + termWidth - 1) / termWidth
+		usedY += rows
 	}
 
 	return usedY
