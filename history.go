@@ -384,6 +384,7 @@ func (rl *Shell) acceptAndInferNextHistory() {
 
 // Move down a line in the buffer, or if already at the
 // bottom line, move to the next event in the history list.
+// If on the last line but not at the end, move to end of line first.
 func (rl *Shell) downLineOrHistory() {
 	times := rl.Iterations.Get()
 	linesDown := rl.line.Lines() - rl.cursor.LinePos()
@@ -393,6 +394,12 @@ func (rl *Shell) downLineOrHistory() {
 	if linesDown > 0 {
 		rl.cursor.LineMove(times)
 		times -= linesDown
+	}
+
+	// On last line but not at end: move to end of line
+	if times > 0 && !rl.cursor.AtEndOfLine() {
+		rl.cursor.EndOfLineAppend()
+		return
 	}
 
 	if times > 0 {
@@ -410,15 +417,31 @@ func (rl *Shell) viDownLineOrHistory() {
 
 // Move up a line in the buffer, or if already at the top
 // line, move to the previous event in the history list.
+// If on the first line but not at the beginning or end,
+// move to beginning of line first.
+// If at the end of the buffer, skip straight to history.
 func (rl *Shell) upLineOrHistory() {
 	times := rl.Iterations.Get()
+
+	// At end of buffer: go straight to history
+	if rl.cursor.Pos() >= rl.line.Len() {
+		rl.History.Walk(times)
+		return
+	}
+
 	linesUp := rl.cursor.LinePos()
 
-	// If we can go down some lines out of
+	// If we can go up some lines out of
 	// the available iterations, use them.
 	if linesUp > 0 {
 		rl.cursor.LineMove(times * -1)
 		times -= linesUp
+	}
+
+	// On first line but not at beginning: move to beginning
+	if times > 0 && !rl.cursor.AtBeginningOfLine() {
+		rl.cursor.BeginningOfLine()
+		return
 	}
 
 	if times > 0 {
