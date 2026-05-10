@@ -136,6 +136,15 @@ func (h *Sources) AddFromFile(name, file string) {
 	h.Add(name, hist)
 }
 
+// AddFromJLineFile adds a command history source from a JLine-format file.
+// JLine format is used by Babashka and Leiningen: "millis:expression".
+func (h *Sources) AddFromJLineFile(name, file string) {
+	hist := &jlineHistory{file: file}
+	hist.lines, _ = openHistJLine(file)
+
+	h.Add(name, hist)
+}
+
 // Delete deletes one or more history source by name.
 // If no arguments are passed, all currently bound sources are removed.
 func (h *Sources) Delete(sources ...string) {

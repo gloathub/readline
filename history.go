@@ -23,6 +23,10 @@ type History = history.Source
 // to the readline instance, with shell.History.Add().
 var NewHistoryFromFile = history.NewSourceFromFile
 
+// NewHistoryFromJLineFile creates a new command history source reading/writing
+// JLine format (used by Babashka and Leiningen: "millis:expression" per line).
+var NewHistoryFromJLineFile = history.NewSourceFromJLineFile
+
 // NewInMemoryHistory creates a new in-memory command history source.
 // The caller should bind the history source returned from this call
 // to the readline instance, with shell.History.Add().

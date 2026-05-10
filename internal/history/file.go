@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -125,5 +126,122 @@ func (h *fileHistory) Len() int {
 
 // Dump returns the entire history file.
 func (h *fileHistory) Dump() interface{} {
+	return h.lines
+}
+
+// jlineHistory provides a history source for JLine-format files.
+// JLine format: each line is "MILLIS_TIMESTAMP:EXPRESSION" where
+// multiline entries use literal \n (two chars) instead of newlines.
+// Used by Babashka and Leiningen.
+type jlineHistory struct {
+	file  string
+	lines []Item
+}
+
+// NewSourceFromJLineFile returns a history source reading/writing JLine format.
+func NewSourceFromJLineFile(file string) (Source, error) {
+	hist := &jlineHistory{file: file}
+	var err error
+	hist.lines, err = openHistJLine(file)
+	return hist, err
+}
+
+func openHistJLine(filename string) (list []Item, err error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return list, fmt.Errorf("%w: %s", errOpenHistoryFile, err.Error())
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line == "" {
+			continue
+		}
+
+		var block string
+		var dt time.Time
+
+		// Split on first colon: "timestamp:expression"
+		if idx := strings.IndexByte(line, ':'); idx > 0 {
+			if millis, err := strconv.ParseInt(line[:idx], 10, 64); err == nil {
+				dt = time.UnixMilli(millis)
+				block = line[idx+1:]
+			} else {
+				// No valid timestamp, treat whole line as block
+				block = line
+			}
+		} else {
+			block = line
+		}
+
+		// Replace literal \n with actual newlines
+		block = strings.ReplaceAll(block, `\n`, "\n")
+		block = strings.TrimSpace(block)
+		if block == "" {
+			continue
+		}
+
+		list = append(list, Item{
+			Index:    len(list),
+			DateTime: dt,
+			Block:    block,
+		})
+	}
+
+	return list, nil
+}
+
+// Write item to JLine history file.
+func (h *jlineHistory) Write(s string) (int, error) {
+	block := strings.TrimSpace(s)
+	if block == "" {
+		return 0, nil
+	}
+
+	item := Item{
+		DateTime: time.Now(),
+		Block:    block,
+		Index:    len(h.lines),
+	}
+
+	if len(h.lines) == 0 || h.lines[len(h.lines)-1].Block != block {
+		h.lines = append(h.lines, item)
+	}
+
+	// JLine format: millis:expression (newlines as literal \n)
+	encoded := strings.ReplaceAll(block, "\n", `\n`)
+	line := fmt.Sprintf("%d:%s\n", item.DateTime.UnixMilli(), encoded)
+
+	f, err := os.OpenFile(h.file, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+	if err != nil {
+		return 0, fmt.Errorf("%w: %s", errOpenHistoryFile, err.Error())
+	}
+
+	_, err = f.WriteString(line)
+	f.Close()
+
+	return h.Len(), err
+}
+
+// GetLine returns a specific line from the JLine history.
+func (h *jlineHistory) GetLine(pos int) (string, error) {
+	if pos < 0 {
+		return "", errNegativeIndex
+	}
+	if pos < len(h.lines) {
+		return h.lines[pos].Block, nil
+	}
+	return "", errOutOfRangeIndex
+}
+
+// Len returns the number of items in the JLine history.
+func (h *jlineHistory) Len() int {
+	return len(h.lines)
+}
+
+// Dump returns the entire JLine history.
+func (h *jlineHistory) Dump() interface{} {
 	return h.lines
 }
